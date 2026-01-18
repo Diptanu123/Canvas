@@ -27,8 +27,13 @@ function setupToolbar() {
   });
   
   const colorPicker = document.getElementById('colorPicker');
+  colorPicker.addEventListener('change', (e) => {
+    canvas.setColor(e.target.value);
+    console.log('Color changed to:', e.target.value);
+  });
   colorPicker.addEventListener('input', (e) => {
     canvas.setColor(e.target.value);
+    console.log('Color input:', e.target.value);
   });
   
   const brushSize = document.getElementById('brushSize');

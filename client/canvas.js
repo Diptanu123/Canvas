@@ -4,7 +4,7 @@ class CanvasManager {
     this.ctx = this.canvas.getContext('2d');
     this.isDrawing = false;
     this.currentStroke = null;
-    this.color = '#000000';
+    this.color = '#FF0000';
     this.brushSize = 3;
     this.tool = 'brush';
     
@@ -74,20 +74,29 @@ class CanvasManager {
     };
   }
   
+  getDrawColor() {
+    if (this.tool === 'eraser') {
+      return '#ffffff';
+    }
+    return this.color;
+  }
+  
   startDrawing(e) {
     this.isDrawing = true;
     const { x, y } = this.getCoordinates(e);
     
+    const currentColor = this.getDrawColor();
+    
     this.currentStroke = {
       points: [{ x, y }],
-      color: this.getDrawColor(),
+      color: currentColor,
       brushSize: this.brushSize
     };
     
     this.ctx.beginPath();
+    this.ctx.strokeStyle = currentColor;
+    this.ctx.lineWidth = this.brushSize;
     this.ctx.moveTo(x, y);
-    this.ctx.strokeStyle = this.currentStroke.color;
-    this.ctx.lineWidth = this.currentStroke.brushSize;
   }
   
   draw(e) {
@@ -96,6 +105,8 @@ class CanvasManager {
     const { x, y } = this.getCoordinates(e);
     this.currentStroke.points.push({ x, y });
     
+    this.ctx.strokeStyle = this.currentStroke.color;
+    this.ctx.lineWidth = this.currentStroke.brushSize;
     this.ctx.lineTo(x, y);
     this.ctx.stroke();
   }
@@ -110,10 +121,6 @@ class CanvasManager {
     }
     
     this.currentStroke = null;
-  }
-  
-  getDrawColor() {
-    return this.tool === 'eraser' ? '#ffffff' : this.color;
   }
   
   drawStroke(stroke) {
