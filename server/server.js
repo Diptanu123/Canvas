@@ -27,12 +27,14 @@ wss.on('connection', (ws) => {
   
   roomManager.addUser(ws.roomId, userId, ws);
   
+  const operations = drawingState.getOperations(ws.roomId);
+  
   ws.send(JSON.stringify({
     type: 'init',
     userId: userId,
     color: userColor,
     users: roomManager.getUsers(ws.roomId),
-    history: drawingState.getHistory(ws.roomId)
+    operations: operations
   }));
   
   broadcastToRoom(ws.roomId, {
@@ -67,10 +69,8 @@ function handleMessage(ws, data) {
   const { type } = data;
   
   switch (type) {
-    case 'drawStart':
-    case 'draw':
-    case 'drawEnd':
-      drawingState.addStroke(ws.roomId, data);
+    case 'stroke':
+      const result = drawingState.addOperation(ws.roomId, data);
       broadcastToRoom(ws.roomId, data, ws.userId);
       break;
       
@@ -79,7 +79,7 @@ function handleMessage(ws, data) {
       broadcastToRoom(ws.roomId, {
         type: 'undo',
         userId: data.userId,
-        historyIndex: undoState.index
+        operations: undoState.operations
       });
       break;
       
@@ -88,12 +88,12 @@ function handleMessage(ws, data) {
       broadcastToRoom(ws.roomId, {
         type: 'redo',
         userId: data.userId,
-        historyIndex: redoState.index
+        operations: redoState.operations
       });
       break;
       
     case 'clear':
-      drawingState.clear(ws.roomId);
+      const clearState = drawingState.clear(ws.roomId);
       broadcastToRoom(ws.roomId, {
         type: 'clear',
         userId: data.userId

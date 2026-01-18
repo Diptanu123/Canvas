@@ -6,62 +6,61 @@ class DrawingState {
   initRoom(roomId) {
     if (!this.rooms.has(roomId)) {
       this.rooms.set(roomId, {
-        strokes: [],
-        history: [],
-        historyIndex: -1
+        operations: [],
+        currentIndex: -1
       });
     }
   }
   
-  addStroke(roomId, strokeData) {
+  addOperation(roomId, operation) {
     this.initRoom(roomId);
     const room = this.rooms.get(roomId);
     
-    if (strokeData.type === 'drawEnd') {
-      room.history = room.history.slice(0, room.historyIndex + 1);
-      room.history.push([...room.strokes]);
-      room.historyIndex = room.history.length - 1;
-    }
+    room.operations = room.operations.slice(0, room.currentIndex + 1);
+    room.operations.push(operation);
+    room.currentIndex = room.operations.length - 1;
     
-    room.strokes.push(strokeData);
+    return { operations: room.operations, index: room.currentIndex };
   }
   
   undo(roomId) {
     this.initRoom(roomId);
     const room = this.rooms.get(roomId);
     
-    if (room.historyIndex > 0) {
-      room.historyIndex--;
-      room.strokes = [...room.history[room.historyIndex]];
+    if (room.currentIndex > -1) {
+      room.currentIndex--;
     }
     
-    return { index: room.historyIndex, strokes: room.strokes };
+    const operations = room.operations.slice(0, room.currentIndex + 1);
+    return { operations, index: room.currentIndex };
   }
   
   redo(roomId) {
     this.initRoom(roomId);
     const room = this.rooms.get(roomId);
     
-    if (room.historyIndex < room.history.length - 1) {
-      room.historyIndex++;
-      room.strokes = [...room.history[room.historyIndex]];
+    if (room.currentIndex < room.operations.length - 1) {
+      room.currentIndex++;
     }
     
-    return { index: room.historyIndex, strokes: room.strokes };
+    const operations = room.operations.slice(0, room.currentIndex + 1);
+    return { operations, index: room.currentIndex };
   }
   
   clear(roomId) {
     this.initRoom(roomId);
     const room = this.rooms.get(roomId);
     
-    room.strokes = [];
-    room.history = [[]];
-    room.historyIndex = 0;
+    room.operations = [];
+    room.currentIndex = -1;
+    
+    return { operations: [], index: -1 };
   }
   
-  getHistory(roomId) {
+  getOperations(roomId) {
     this.initRoom(roomId);
-    return this.rooms.get(roomId).strokes;
+    const room = this.rooms.get(roomId);
+    return room.operations.slice(0, room.currentIndex + 1);
   }
 }
 

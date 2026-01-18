@@ -7,7 +7,8 @@ let users = new Map();
 function init() {
   canvas = new CanvasManager('drawingCanvas');
   
-  const wsUrl = `ws://${window.location.hostname}:${window.location.port || 3000}`;
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}`;
   ws = new WebSocketManager(wsUrl);
   
   setupToolbar();
@@ -26,7 +27,7 @@ function setupToolbar() {
   });
   
   const colorPicker = document.getElementById('colorPicker');
-  colorPicker.addEventListener('change', (e) => {
+  colorPicker.addEventListener('input', (e) => {
     canvas.setColor(e.target.value);
   });
   
@@ -73,7 +74,10 @@ function setupWebSocketHandlers() {
     });
     
     updateUserCount();
-    replayHistory(data.history);
+    
+    if (data.operations && data.operations.length > 0) {
+      canvas.redrawAll(data.operations);
+    }
   });
   
   ws.on('userJoined', (data) => {
@@ -87,23 +91,16 @@ function setupWebSocketHandlers() {
     updateUserCount();
   });
   
-  ws.on('drawStart', (data) => {
-    canvas.startRemotePath(data);
-  });
-  
-  ws.on('draw', (data) => {
-    canvas.drawRemotePath(data);
-  });
-  
-  ws.on('drawEnd', (data) => {
+  ws.on('stroke', (data) => {
+    canvas.drawStroke(data);
   });
   
   ws.on('undo', (data) => {
-    canvas.clearCanvas();
+    canvas.redrawAll(data.operations);
   });
   
   ws.on('redo', (data) => {
-    canvas.clearCanvas();
+    canvas.redrawAll(data.operations);
   });
   
   ws.on('clear', (data) => {
@@ -116,47 +113,21 @@ function setupWebSocketHandlers() {
 }
 
 function setupCanvasHandlers() {
-  canvas.onDrawStart = (data) => {
+  canvas.onStrokeComplete = (stroke) => {
     ws.send({
-      type: 'drawStart',
+      type: 'stroke',
       userId,
-      ...data
+      ...stroke
     });
   };
   
-  canvas.onDraw = (data) => {
-    ws.send({
-      type: 'draw',
-      userId,
-      ...data
-    });
-  };
-  
-  canvas.onDrawEnd = (data) => {
-    ws.send({
-      type: 'drawEnd',
-      userId,
-      ...data
-    });
-  };
-  
-  canvas.onCursorMove = (data) => {
+  canvas.onCursorMove = (coords) => {
     ws.send({
       type: 'cursor',
       userId,
-      ...data
+      ...coords
     });
   };
-}
-
-function replayHistory(history) {
-  history.forEach(stroke => {
-    if (stroke.type === 'drawStart') {
-      canvas.startRemotePath(stroke);
-    } else if (stroke.type === 'draw') {
-      canvas.drawRemotePath(stroke);
-    }
-  });
 }
 
 function updateCursor(uid, x, y) {

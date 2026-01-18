@@ -3,7 +3,7 @@ class CanvasManager {
     this.canvas = document.getElementById(canvasId);
     this.ctx = this.canvas.getContext('2d');
     this.isDrawing = false;
-    this.currentPath = [];
+    this.currentStroke = null;
     this.color = '#000000';
     this.brushSize = 3;
     this.tool = 'brush';
@@ -22,16 +22,33 @@ class CanvasManager {
   
   resizeCanvas() {
     const rect = this.canvas.getBoundingClientRect();
+    const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+    
     this.canvas.width = rect.width;
     this.canvas.height = rect.height;
     
     this.ctx.fillStyle = '#ffffff';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    if (imageData.width > 0) {
+      this.ctx.putImageData(imageData, 0, 0);
+    }
+    
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
   }
   
   setupEventListeners() {
     this.canvas.addEventListener('mousedown', (e) => this.startDrawing(e));
-    this.canvas.addEventListener('mousemove', (e) => this.draw(e));
+    this.canvas.addEventListener('mousemove', (e) => {
+      if (this.isDrawing) {
+        this.draw(e);
+      }
+      if (this.onCursorMove) {
+        const coords = this.getCoordinates(e);
+        this.onCursorMove(coords);
+      }
+    });
     this.canvas.addEventListener('mouseup', () => this.stopDrawing());
     this.canvas.addEventListener('mouseleave', () => this.stopDrawing());
     
@@ -43,7 +60,6 @@ class CanvasManager {
   getTouchPos(e) {
     e.preventDefault();
     const touch = e.touches[0];
-    const rect = this.canvas.getBoundingClientRect();
     return {
       clientX: touch.clientX,
       clientY: touch.clientY
@@ -62,33 +78,26 @@ class CanvasManager {
     this.isDrawing = true;
     const { x, y } = this.getCoordinates(e);
     
-    this.currentPath = [{ x, y }];
+    this.currentStroke = {
+      points: [{ x, y }],
+      color: this.getDrawColor(),
+      brushSize: this.brushSize
+    };
+    
     this.ctx.beginPath();
     this.ctx.moveTo(x, y);
-    
-    if (this.onDrawStart) {
-      this.onDrawStart({ x, y, color: this.getDrawColor(), brushSize: this.brushSize });
-    }
+    this.ctx.strokeStyle = this.currentStroke.color;
+    this.ctx.lineWidth = this.currentStroke.brushSize;
   }
   
   draw(e) {
     if (!this.isDrawing) return;
     
     const { x, y } = this.getCoordinates(e);
-    this.currentPath.push({ x, y });
+    this.currentStroke.points.push({ x, y });
     
-    this.ctx.strokeStyle = this.getDrawColor();
-    this.ctx.lineWidth = this.brushSize;
     this.ctx.lineTo(x, y);
     this.ctx.stroke();
-    
-    if (this.onDraw) {
-      this.onDraw({ x, y, color: this.getDrawColor(), brushSize: this.brushSize });
-    }
-    
-    if (this.onCursorMove) {
-      this.onCursorMove({ x, y });
-    }
   }
   
   stopDrawing() {
@@ -96,34 +105,45 @@ class CanvasManager {
     
     this.isDrawing = false;
     
-    if (this.onDrawEnd) {
-      this.onDrawEnd({ path: this.currentPath });
+    if (this.onStrokeComplete && this.currentStroke) {
+      this.onStrokeComplete(this.currentStroke);
     }
     
-    this.currentPath = [];
+    this.currentStroke = null;
   }
   
   getDrawColor() {
     return this.tool === 'eraser' ? '#ffffff' : this.color;
   }
   
-  drawRemotePath(data) {
-    this.ctx.strokeStyle = data.color;
-    this.ctx.lineWidth = data.brushSize;
-    this.ctx.lineTo(data.x, data.y);
-    this.ctx.stroke();
-  }
-  
-  startRemotePath(data) {
+  drawStroke(stroke) {
+    if (!stroke || !stroke.points || stroke.points.length === 0) return;
+    
     this.ctx.beginPath();
-    this.ctx.moveTo(data.x, data.y);
-    this.ctx.strokeStyle = data.color;
-    this.ctx.lineWidth = data.brushSize;
+    this.ctx.strokeStyle = stroke.color;
+    this.ctx.lineWidth = stroke.brushSize;
+    
+    this.ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+    
+    for (let i = 1; i < stroke.points.length; i++) {
+      this.ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+    }
+    
+    this.ctx.stroke();
   }
   
   clearCanvas() {
     this.ctx.fillStyle = '#ffffff';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+  }
+  
+  redrawAll(operations) {
+    this.clearCanvas();
+    operations.forEach(op => {
+      if (op.type === 'stroke') {
+        this.drawStroke(op);
+      }
+    });
   }
   
   setTool(tool) {
